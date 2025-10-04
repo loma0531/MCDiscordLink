@@ -171,7 +171,7 @@ advanced:
 
 ### 🔧 Placeholders
 - `{code}` - The 4-digit code
-- `{minutes}` - Expiry time
+- `{expiry-minutes}` - Expiry time
 - `{max-accounts}` - Account limit
 - `{minecraft-name}` - Player name
 - `{discord-name}` - Discord name
