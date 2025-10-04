@@ -1,196 +1,170 @@
 package legacy.discordlink
 
-import dev.kord.core.Kord
-import dev.kord.core.behavior.interaction.response.respond
-import dev.kord.core.entity.interaction.ModalSubmitInteraction
-import dev.kord.core.event.interaction.ButtonInteractionCreateEvent
-import dev.kord.core.event.interaction.ChatInputCommandInteractionCreateEvent
-import dev.kord.core.event.interaction.ModalSubmitInteractionCreateEvent
-import dev.kord.core.on
-import dev.kord.rest.builder.interaction.string
-import dev.kord.rest.builder.message.actionRow
-import dev.kord.rest.builder.message.embed
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import dev.kord.common.entity.ButtonStyle
-import dev.kord.common.entity.Permission
-import dev.kord.common.entity.TextInputStyle
-import dev.kord.core.behavior.interaction.modal
-import dev.kord.rest.builder.component.option
+import net.dv8tion.jda.api.JDA
+import net.dv8tion.jda.api.JDABuilder
+import net.dv8tion.jda.api.Permission
+import net.dv8tion.jda.api.entities.emoji.Emoji
+import net.dv8tion.jda.api.events.interaction.ModalInteractionEvent
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent
+import net.dv8tion.jda.api.hooks.ListenerAdapter
+import net.dv8tion.jda.api.interactions.commands.build.Commands
+import net.dv8tion.jda.api.interactions.components.ActionRow
+import net.dv8tion.jda.api.interactions.components.buttons.Button
+import net.dv8tion.jda.api.interactions.components.text.TextInput
+import net.dv8tion.jda.api.interactions.components.text.TextInputStyle
+import net.dv8tion.jda.api.interactions.modals.Modal
+import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder
+import net.dv8tion.jda.api.EmbedBuilder
+import java.awt.Color
 
 class DiscordBot(
     private val logger: java.util.logging.Logger, 
     private val db: DatabaseManager,
     private val cfg: ConfigManager,
     private val token: String
-) {
-    private var kord: Kord? = null
-    private val scope = CoroutineScope(Dispatchers.Default)
+) : ListenerAdapter() {
+    private var jda: JDA? = null
 
     fun start() {
-        scope.launch {
-            try {
-                kord = Kord(token)
+        try {
+            jda = JDABuilder.createDefault(token)
+                .addEventListeners(this)
+                .build()
+                
+            jda?.awaitReady()
+            
+            // Register slash command
+            jda?.updateCommands()?.addCommands(
+                Commands.slash("setup-link-discord", "Setup Discord-Minecraft linking system (Admin only)")
+            )?.queue()
+            
+            logger.info("Discord bot started successfully")
+        } catch (e: Exception) {
+            logger.severe("Failed to start Discord bot: ${e.message}")
+            e.printStackTrace()
+        }
+    }
 
-                // Register slash command
-                kord?.createGlobalChatInputCommand(
-                    "setup-link-discord",
-                    "Setup Discord-Minecraft linking system (Admin only)"
+    override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
+        if (event.name == "setup-link-discord") {
+            // Check if command is used in a guild
+            if (event.guild == null) {
+                event.reply(cfg.getDiscordGuildOnly()).setEphemeral(true).queue()
+                return
+            }
+            
+            // Check if user has admin permissions
+            val member = event.member
+            if (member == null || !member.hasPermission(Permission.ADMINISTRATOR)) {
+                event.reply(cfg.getDiscordNoPermission()).setEphemeral(true).queue()
+                return
+            }
+
+            // Create embed with button
+            val embed = EmbedBuilder()
+                .setTitle(cfg.getDiscordEmbedTitle())
+                .setDescription(
+                    cfg.getDiscordEmbedDescription()
+                        .replace("{max-accounts}", cfg.getMaxAccountsPerDiscord().toString())
+                        .replace("{expiry-minutes}", cfg.getCodeExpiryMinutes().toString())
                 )
+                .setColor(Color.decode(cfg.getDiscordEmbedColor()))
+            
+            // Add detailed steps field if enabled
+            if (cfg.getDiscordShowDetailedSteps()) {
+                embed.addField(
+                    cfg.getDiscordEmbedFieldTitle(),
+                    cfg.getDiscordEmbedFieldValue(),
+                    false
+                )
+            }
+            
+            // Parse button style
+            val buttonStyle = when (cfg.getDiscordButtonColor().uppercase()) {
+                "SECONDARY" -> Button.secondary("link_minecraft", cfg.getDiscordButtonLabel())
+                "SUCCESS" -> Button.success("link_minecraft", cfg.getDiscordButtonLabel())
+                "DANGER" -> Button.danger("link_minecraft", cfg.getDiscordButtonLabel())
+                else -> Button.primary("link_minecraft", cfg.getDiscordButtonLabel())
+            }.withEmoji(Emoji.fromUnicode(cfg.getDiscordButtonEmoji()))
+            
+            event.replyEmbeds(embed.build())
+                .addActionRow(buttonStyle)
+                .queue()
+        }
+    }
 
-                // Handle slash command
-                kord?.on<ChatInputCommandInteractionCreateEvent> {
-                    if (interaction.invokedCommandName == "setup-link-discord") {
-                        // Check if command is used in a guild
-                        val guildId = interaction.data.guildId.value
-                        if (guildId == null) {
-                            interaction.deferEphemeralResponse().respond {
-                                content = cfg.getDiscordGuildOnly()
-                            }
-                            return@on
-                        }
-                        
-                        // Check if user has admin permissions
-                        val member = interaction.user.asMemberOrNull(guildId)
-                        val hasPermission = member?.getPermissions()?.contains(Permission.Administrator) == true
-                        
-                        if (!hasPermission) {
-                            interaction.deferEphemeralResponse().respond {
-                                content = cfg.getDiscordNoPermission()
-                            }
-                            return@on
-                        }
+    override fun onButtonInteraction(event: ButtonInteractionEvent) {
+        if (event.componentId == "link_minecraft") {
+            // Show modal for code input
+            val codeInput = TextInput.create("minecraft_code", cfg.getDiscordModalInputLabel(), TextInputStyle.SHORT)
+                .setPlaceholder(cfg.getDiscordModalInputPlaceholder())
+                .setRequiredRange(4, 4)
+                .build()
+            
+            val modal = Modal.create("code_input_modal", cfg.getDiscordModalTitle())
+                .addActionRow(codeInput)
+                .build()
+            
+            event.replyModal(modal).queue()
+        }
+    }
 
-                        // Create embed with button
-                        interaction.deferPublicResponse().respond {
-                            embed {
-                                title = cfg.getDiscordEmbedTitle()
-                                description = cfg.getDiscordEmbedDescription()
-                                    .replace("{max-accounts}", cfg.getMaxAccountsPerDiscord().toString())
-                                    .replace("{expiry-minutes}", cfg.getCodeExpiryMinutes().toString())
-                                
-                                // Parse color from hex string
-                                val colorHex = cfg.getDiscordEmbedColor().removePrefix("#")
-                                color = dev.kord.common.Color(colorHex.toInt(16))
-                                
-                                // Add detailed steps field if enabled
-                                if (cfg.getDiscordShowDetailedSteps()) {
-                                    field {
-                                        name = cfg.getDiscordEmbedFieldTitle()
-                                        value = cfg.getDiscordEmbedFieldValue()
-                                        inline = false
-                                    }
-                                }
-                            }
-                            
-                            actionRow {
-                                // Parse button style
-                                val buttonStyle = when (cfg.getDiscordButtonColor().uppercase()) {
-                                    "PRIMARY" -> ButtonStyle.Primary
-                                    "SECONDARY" -> ButtonStyle.Secondary
-                                    "SUCCESS" -> ButtonStyle.Success
-                                    "DANGER" -> ButtonStyle.Danger
-                                    else -> ButtonStyle.Primary
-                                }
-                                
-                                interactionButton(buttonStyle, "link_minecraft") {
-                                    label = cfg.getDiscordButtonLabel()
-                                    emoji = dev.kord.common.entity.DiscordPartialEmoji(name = cfg.getDiscordButtonEmoji())
-                                }
-                            }
-                        }
-                    }
+    override fun onModalInteraction(event: ModalInteractionEvent) {
+        if (event.modalId == "code_input_modal") {
+            val code = event.getValue("minecraft_code")?.asString?.trim()
+            
+            if (code.isNullOrEmpty() || code.length != 4) {
+                event.reply(cfg.getDiscordInvalidCode()).setEphemeral(true).queue()
+                return
+            }
+
+            // Verify code and get player info
+            val playerInfo = db.verifyCodeAndGetPlayer(code)
+            if (playerInfo == null) {
+                event.reply(cfg.getDiscordCodeExpired()).setEphemeral(true).queue()
+                return
+            }
+
+            val (uuid, minecraftName) = playerInfo
+            val discordId = event.user.id
+            val discordName = event.user.name
+
+            // Check account limit
+            val currentCount = db.getAccountCountForDiscord(discordId)
+            if (currentCount >= cfg.getMaxAccountsPerDiscord()) {
+                event.reply(
+                    cfg.getDiscordAccountLimit()
+                        .replace("{max-accounts}", cfg.getMaxAccountsPerDiscord().toString())
+                ).setEphemeral(true).queue()
+                return
+            }
+
+            // Link the account
+            val success = db.linkAccount(uuid, minecraftName, discordId, discordName)
+            if (success) {
+                event.reply(
+                    cfg.getDiscordSuccess()
+                        .replace("{minecraft-name}", minecraftName)
+                        .replace("{discord-name}", discordName)
+                        .replace("{current-count}", (currentCount + 1).toString())
+                        .replace("{max-accounts}", cfg.getMaxAccountsPerDiscord().toString())
+                ).setEphemeral(true).queue()
+                
+                if (cfg.getLogSuccessfulLinks()) {
+                    logger.info("Successfully linked $minecraftName ($uuid) with Discord $discordName ($discordId)")
                 }
-
-                // Handle button click
-                kord?.on<ButtonInteractionCreateEvent> {
-                    if (interaction.componentId == "link_minecraft") {
-                        // Show modal for code input
-                        interaction.modal(cfg.getDiscordModalTitle(), "code_input_modal") {
-                            actionRow {
-                                textInput(TextInputStyle.Short, "minecraft_code", cfg.getDiscordModalInputLabel()) {
-                                    placeholder = cfg.getDiscordModalInputPlaceholder()
-                                    required = true
-                                    allowedLength = 4..4
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Handle modal submission
-                kord?.on<ModalSubmitInteractionCreateEvent> {
-                    if (interaction.modalId == "code_input_modal") {
-                        val code = interaction.textInputs["minecraft_code"]?.value?.trim()
-                        
-                        if (code.isNullOrEmpty() || code.length != 4) {
-                            interaction.deferEphemeralResponse().respond {
-                                content = cfg.getDiscordInvalidCode()
-                            }
-                            return@on
-                        }
-
-                        // Verify code and get player info
-                        val playerInfo = db.verifyCodeAndGetPlayer(code)
-                        if (playerInfo == null) {
-                            interaction.deferEphemeralResponse().respond {
-                                content = cfg.getDiscordCodeExpired()
-                            }
-                            return@on
-                        }
-
-                        val (uuid, minecraftName) = playerInfo
-                        val discordId = interaction.user.id.toString()
-                        val discordName = interaction.user.username
-
-                        // Check account limit
-                        val currentCount = db.getAccountCountForDiscord(discordId)
-                        if (currentCount >= cfg.getMaxAccountsPerDiscord()) {
-                            interaction.deferEphemeralResponse().respond {
-                                content = cfg.getDiscordAccountLimit()
-                                    .replace("{max-accounts}", cfg.getMaxAccountsPerDiscord().toString())
-                            }
-                            return@on
-                        }
-
-                        // Link the account
-                        val success = db.linkAccount(uuid, minecraftName, discordId, discordName)
-                        if (success) {
-                            interaction.deferEphemeralResponse().respond {
-                                content = cfg.getDiscordSuccess()
-                                    .replace("{minecraft-name}", minecraftName)
-                                    .replace("{discord-name}", discordName)
-                                    .replace("{current-count}", (currentCount + 1).toString())
-                                    .replace("{max-accounts}", cfg.getMaxAccountsPerDiscord().toString())
-                            }
-                            if (cfg.getLogSuccessfulLinks()) {
-                                logger.info("Successfully linked $minecraftName ($uuid) with Discord $discordName ($discordId)")
-                            }
-                        } else {
-                            interaction.deferEphemeralResponse().respond {
-                                content = cfg.getDiscordError()
-                            }
-                        }
-                    }
-                }
-
-                logger.info("Discord bot started successfully")
-                kord?.login()
-            } catch (e: Exception) {
-                logger.severe("Failed to start Discord bot: ${e.message}")
-                e.printStackTrace()
+            } else {
+                event.reply(cfg.getDiscordError()).setEphemeral(true).queue()
             }
         }
     }
 
     fun stop() {
-        scope.launch {
-            try {
-                kord?.logout()
-            } catch (e: Exception) {
-                logger.warning("Error stopping Kord: ${e.message}")
-            }
+        try {
+            jda?.shutdown()
+        } catch (e: Exception) {
+            logger.warning("Error stopping JDA: ${e.message}")
         }
     }
 }

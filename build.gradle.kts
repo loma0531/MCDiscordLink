@@ -15,10 +15,8 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21-R0.1-SNAPSHOT")
     implementation(kotlin("stdlib"))
     
-    // Use older, stable versions that work together
-    implementation("dev.kord:kord-core:0.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.4.0")
+    // Use JDA instead of Kord - more stable and fewer conflicts
+    implementation("net.dv8tion:JDA:5.0.0-beta.24")
     
     // Database dependencies
     implementation("mysql:mysql-connector-java:8.0.33")
@@ -43,7 +41,7 @@ tasks {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
         
         exclude("META-INF/*.SF")
-        exclude("META-INF/*.DSA") 
+        exclude("META-INF/*.DSA")
         exclude("META-INF/*.RSA")
         exclude("META-INF/DEPENDENCIES")
         exclude("META-INF/LICENSE*")
