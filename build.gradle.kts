@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "legacy.discordlink"
-version = "1.0.0"
+version = "1.1.1_A"
 
 repositories {
     mavenCentral()

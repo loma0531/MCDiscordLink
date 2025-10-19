@@ -45,6 +45,11 @@ plugin:
   max-accounts-per-discord: 10    # Max Minecraft accounts per Discord
   code-expiry-minutes: 30         # How long codes last
 
+# Account verification requirements (heuristic-based)
+verification:
+  require-email-verified: true     # Require likely email verification
+  require-phone-verified: true     # Require likely phone verification
+
 # ========================================
 # MINECRAFT KICK MESSAGE (with colors!)
 # ========================================
@@ -142,6 +147,7 @@ advanced:
 - ✅ **Customizable Messages** - Both kick messages and Discord embeds
 - ✅ **Multiple Accounts** - Up to 10 Minecraft accounts per Discord (configurable)
 - ✅ **Admin Controls** - Admin-only setup command with permissions
+- ✅ **Account Verification** - Require likely verified email/phone on Discord (heuristic-based, configurable)
 - ✅ **Smart Delays** - Prevents plugin conflicts with configurable kick delay
 - ✅ **Operator Bypass** - Ops can skip linking (configurable)
 - ✅ **Secure Codes** - 4-digit codes with expiration
@@ -154,3 +160,42 @@ advanced:
 - Paper/Spigot 1.21+
 - MySQL database
 - Discord bot with appropriate permissions
+
+## ⚠️ IMPORTANT: Plugin Reload Warning
+
+**This plugin CANNOT be safely reloaded using PlugMan or similar tools.**
+
+### Why?
+The plugin uses JDA (Java Discord API) which creates persistent connections that cannot be properly unloaded during reloads, causing class loading conflicts.
+
+### Solution:
+- **Restart your server** instead of using reload commands
+- If you must reload: `/plugman unload MCDiscordLink` → wait 5 seconds → `/plugman load MCDiscordLink`
+- **Server restart is always recommended** for best stability
+
+## 🔐 Account Verification System
+
+### How It Works
+The plugin can require Discord users to have "verified" accounts before linking. However, Discord's API doesn't expose exact verification status to bots.
+
+### Heuristic Approach
+Instead, we use intelligent indicators:
+
+**Email Verification Indicators:**
+- Account 14+ days old with avatar/roles
+- User has Discord badges/flags
+
+**Phone Verification Indicators:**
+- Account 30+ days old with activity
+- User has server permissions
+
+### Configuration
+```yaml
+verification:
+  require-email-verified: true   # Enable email verification checks
+  require-phone-verified: true   # Enable phone verification checks
+```
+
+Set to `false` to disable verification requirements.
+
+**Note:** This is heuristic-based and filters out most new/fake accounts while allowing legitimate users.

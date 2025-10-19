@@ -1,4 +1,10 @@
 name: MCDiscordLink
 main: legacy.discordlink.Main
-version: 1.0.0
+version: 1.1.1_A
 api-version: 1.21
+commands:
+  mclink:
+    description: MCDiscordLink commands
+    usage: /mclink <reload|check|unlink> [player]
+    permission: mcdiscordlink.admin
+    permission-message: "§cYou don't have permission to use this command!"
