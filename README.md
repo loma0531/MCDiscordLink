@@ -186,96 +186,6 @@ advanced:
   debug: false                  # เปิด Debug mode (แสดงข้อความเพิ่มเติมใน console)
 
 ```
-
-### 🎨 Color Codes for Minecraft Messages
-- `&c` = Red
-- `&e` = Yellow  
-- `&a` = Green
-- `&b` = Aqua
-- `&d` = Light Purple
-- `&f` = White
-- `&7` = Gray
-- `&8` = Dark Gray
-- `&9` = Blue
-- `&l` = Bold
-- `&o` = Italic
-- `&n` = Underline
-
-## Database Tables
-
-### discord_links
-- Stores permanent account links
-- Allows multiple Minecraft accounts per Discord ID
-
-### temp_codes
-- Stores temporary 4-digit codes
-- Automatically cleaned up when expired
-
-## Commands
-
-### Discord Commands
-- `/setup-link-discord` - Creates linking interface (Admin only)
-
-### Minecraft
-- No commands needed - all linking happens through Discord
-
-## Setup Instructions
-
-1. Create Discord bot and get token
-2. Configure `config.yml` with bot token and database settings
-3. Start server to create database tables
-4. In Discord, use `/setup-link-discord` to create linking interface
-5. Players will be kicked with codes when they try to join
-
-## Features
-
-- ✅ **Easy Configuration** - Simple, well-organized config.yml
-- ✅ **Color Support** - Full Minecraft color code support (&c, &e, &a, etc.)
-- ✅ **Customizable Messages** - Both kick messages and Discord embeds
-- ✅ **Multiple Accounts** - Up to 10 Minecraft accounts per Discord (configurable)
-- ✅ **Admin Controls** - Admin-only setup command with permissions
-- ✅ **Account Verification** - Require likely verified email/phone on Discord (heuristic-based, configurable)
-- ✅ **Smart Delays** - Prevents plugin conflicts with configurable kick delay
-- ✅ **Operator Bypass** - Ops can skip linking (configurable)
-- ✅ **Secure Codes** - 4-digit codes with expiration
-- ✅ **Database Cleanup** - Automatic cleanup of expired codes
-- ✅ **Logging Control** - Optional success logging
-- ✅ **Multi-language Ready** - Easy translation through config
-
-## Requirements
-
-- Paper/Spigot 1.21+
-- MySQL database
-- Discord bot with appropriate permissions
-
-## ⚠️ IMPORTANT: Plugin Reload Warning
-
-**This plugin CANNOT be safely reloaded using PlugMan or similar tools.**
-
-### Why?
-The plugin uses JDA (Java Discord API) which creates persistent connections that cannot be properly unloaded during reloads, causing class loading conflicts.
-
-### Solution:
-- **Restart your server** instead of using reload commands
-- If you must reload: `/plugman unload MCDiscordLink` → wait 5 seconds → `/plugman load MCDiscordLink`
-- **Server restart is always recommended** for best stability
-
-## 🔐 Account Verification System
-
-### How It Works
-The plugin can require Discord users to have "verified" accounts before linking. However, Discord's API doesn't expose exact verification status to bots.
-
-### Heuristic Approach
-Instead, we use intelligent indicators:
-
-**Email Verification Indicators:**
-- Account 14+ days old with avatar/roles
-- User has Discord badges/flags
-
-**Phone Verification Indicators:**
-- Account 30+ days old with activity
-- User has server permissions
-
 ### Placeholders
 ```yaml
 # ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -307,8 +217,3 @@ Instead, we use intelligent indicators:
 # ║  {channel-id}   = Channel ID                                              ║
 # ║  {user}         = ชื่อผู้ใช้ทั่วไป                                                ║
 # ╚═══════════════════════════════════════════════════════════════════════════╝
-```
-
-Set to `false` to disable verification requirements.
-
-**Note:** This is heuristic-based and filters out most new/fake accounts while allowing legitimate users.
